@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:camera_robot/start.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-//import 'package:path/path.dart' show join;
-//import 'package:path_provider/path_provider.dart';
-//import 'package:simple_permissions/simple_permissions.dart';
-//import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
 
-Future<void> main() async {
+/* Future<void> main() async {
 
   WidgetsFlutterBinding.ensureInitialized(); // Ensure that plugin services are initialized so that `availableCameras()` can be called before `runApp()`
   final cameras = await availableCameras(); // Obtain a list of the available cameras on the device.
@@ -23,15 +22,19 @@ Future<void> main() async {
       ),
     ),
   );
-}
+} */
 
 // A screen that allows users to take a picture using a given camera.
 class TakePictureScreen extends StatefulWidget {
-  final CameraDescription camera;
+//  CameraDescription camera;
+  final String address;
+  final int sendTime;
 
-  const TakePictureScreen({
+  TakePictureScreen({
     Key key,
-    @required this.camera,
+    @required this.address,
+    @required this.sendTime,
+    // @required this.camera,
   }) : super(key: key);
 
   @override
@@ -39,36 +42,53 @@ class TakePictureScreen extends StatefulWidget {
 }
 
 class TakePictureScreenState extends State<TakePictureScreen> {
-  static const platformMethodChannel = const MethodChannel("com.example.camera_stream_test3");
+  static const platformMethodChannel = const MethodChannel("com.example.camera_robot");
+  CameraDescription camera;
   CameraController _controller;
-  Future<void> _initializeControllerFuture;
+  Future<void> _initAll;
   bool stopped;
+
+  Future<void> _initCamera() async {
+//    print("starting _initCamera");
+    WidgetsFlutterBinding.ensureInitialized(); // Ensure that plugin services are initialized so that `availableCameras()` can be called before `runApp()`
+    final cameras = await availableCameras(); // Obtain a list of the available cameras on the device.
+    print("ASDF there are ${cameras.length} cameras available");
+    camera = cameras[2]; // Get a specific camera from the list of available cameras. Use wide angle camera!
+//    print("done with _initCamera");
+  }
+
+  Future<void> _initController() async {
+//     print("starting _initController");
+    _controller = CameraController( // To display the current output from the Camera, create a CameraController.
+      camera,
+      ResolutionPreset.low, // Can change the resolution here
+    );
+    _controller.initialize();
+//    print("done with _initController");
+  }
+
+  Future<void> _initAllFunc() async {
+    _initCamera().then((value) {
+      _initController();
+    });
+  }
+
+  Future<void> _writeToFile(String val) async {
+//    Directory dir = await getApplicationDocumentsDirectory();
+//    String dirFolder = dir.path;
+    String dirFolder = "/storage/self/primary/Download";
+    String dirFile = "$dirFolder/camera-robot_log.txt";
+
+    File f = File(dirFile);
+    f.writeAsString(val);
+    print("ASDF wrote data to file at $dirFile");
+  }
 
   @override
   void initState() {
     super.initState();
     stopped = false;
-
-//    SimplePermissions.requestPermission(Permission. WriteExternalStorage).then((PermissionStatus s) {
-//      if (s == PermissionStatus.authorized){
-//        // code of read or write file in external storage (SD card)
-//        print("ASDF got write permission");
-//      }
-//    });
-
-    // Map<PermissionGroup, PermissionStatus> permissions = await
-    // PermissionHandler().requestPermissions([PermissionGroup.storage]);
-
-    // String address = "http://192.168.0.225:5000";
-    String address = "http://1faaacb0.ngrok.io";
-    platformMethodChannel.invokeMethod("streamStart", {"address":address}); // TODO make sure address is correct
-    // To display the current output from the Camera, create a CameraController.
-    _controller = CameraController(
-      widget.camera, // Get a specific camera from the list of available cameras.
-      ResolutionPreset.low, // Define the resolution to use. TODO try changing resolution
-    );
-
-    _initializeControllerFuture = _controller.initialize(); // Next, initialize the controller. This returns a Future
+    _initAll = _initAllFunc();
   }
 
   @override
@@ -87,12 +107,19 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       appBar: AppBar(title: Text('View the camera')),
       // Wait until the controller is initialized before displaying the camera preview. Use a FutureBuilder to display a loading spinner until the controller has finished initializing.
       body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
+        future: _initAll,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) { // If the Future is complete, display the preview.
-            _controller.startImageStream((CameraImage img) {
-              _streamImage(img);
+          if (snapshot.connectionState == ConnectionState.done && stopped == false) { // If the Future is complete, display the preview.
+//            platformMethodChannel.invokeMethod("myLog").then((value) {
+//              print("ASDF trying to write value=$value");
+//              _writeToFile("$value");
+//            });
+            platformMethodChannel.invokeMethod("streamStart", {"address": widget.address, "sendTime": widget.sendTime}).then((val) {
+              _controller.startImageStream((CameraImage img) {
+                _streamImage(img);
+              });
             });
+
             return CameraPreview(_controller);
           } else {
             return Center(child: CircularProgressIndicator());
@@ -105,7 +132,12 @@ class TakePictureScreenState extends State<TakePictureScreen> {
             stopped = true;
             platformMethodChannel.invokeMethod('streamClose');
             // _controller.startImageStream(null);
-            // TODO navigate to start page
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MyApp(),
+              ),
+            );
           }
       ),
     );

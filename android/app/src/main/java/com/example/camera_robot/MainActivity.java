@@ -1,9 +1,12 @@
 package com.example.camera_robot;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 
 import androidx.annotation.NonNull;
 
@@ -13,7 +16,6 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
-import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
 import java.io.ByteArrayOutputStream;
@@ -30,47 +32,61 @@ import io.flutter.plugins.GeneratedPluginRegistrant;
 
 public class MainActivity extends FlutterActivity {
     static final String TAG = "ASDF";
-    static final String CHANNEL = "com.example.camera_stream_test3";
+    static final String CHANNEL = "com.example.camera_robot";
 
     // boolean sentOnce;
     RequestQueue queue;
-    GetService getService;
+    // GetService getService;
     long lastSentMillis;
     String address;
+    int sendTime = 2000; // How often a post/get happens, in ms
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         GeneratedPluginRegistrant.registerWith(flutterEngine);
 
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL).setMethodCallHandler(
-                (methodCall, result) -> {
+                (methodCall, result) -> { // Are the result.success(null) lines useful?
                     if (methodCall.method.equals("streamStart")) {
                         Log.d(TAG, "Init stream...");
                         streamInit(methodCall);
+                        result.success(null);
                     } else if (methodCall.method.equals("streamImage")) {
                         streamImage(methodCall);
+                        result.success(null);
                     } else if(methodCall.method.equals("streamClose")) {
                         Log.d(TAG, "Trying to close stream...");
                         streamClose(methodCall);
+                        result.success(null);
+                    } else if(methodCall.method.equals("myLog")) {
+                        Log.d(TAG, "Log methodCall...");
+                        result.success(getMyLog());
+                    } else {
+                        result.notImplemented();
                     }
                 }
         );
     }
 
     public void streamInit(MethodCall methodCall) {
-        String a = methodCall.argument("address"); // "192.168.0.225";
-        // int p = methodCall.argument("port");
-        address = a; // + ":" + p;
+        try {
+            sendTime = methodCall.argument("sendTime");
+            address = methodCall.argument("address");
+        } catch (NullPointerException e) {
+            Log.e(TAG, "streamInit methodCall arguments are missing values. ");
+            e.printStackTrace();
+        }
         queue = Volley.newRequestQueue(this);
 
-        getService = new GetService("GetServiceIntent", queue, address);
+        // getService = new GetService("GetServiceIntent", queue, address);
+        // startService(new Intent(this, GetService.class));
+
         lastSentMillis = -1;
-        // sentOnce = false;
-        Log.d(TAG, "Done with init stream, address=" + address);
+        Log.d(TAG, "Done with streamInit, address=" + address);
     }
 
     public void streamImage(MethodCall methodCall) {
-        if(System.currentTimeMillis() < lastSentMillis + 1200) {
+        if(System.currentTimeMillis() < lastSentMillis + sendTime) {
             // Log.d(TAG, "Skipping because of time delay");
             return;
         }
@@ -88,8 +104,6 @@ public class MainActivity extends FlutterActivity {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         img.compressToJpeg(new Rect(0, 0, width, height), 20, out);
         byte[] out_bytes = out.toByteArray();
-        // new SavePhotoTask().execute(out_bytes); // Save the photo
-        // String s = new String(out_bytes, StandardCharsets.UTF_8); // String from compressed image
 
         Log.d(TAG, "Sending byte message with length=" + out_bytes.length);
         volleyPost(out_bytes);
@@ -99,11 +113,11 @@ public class MainActivity extends FlutterActivity {
 
     public void streamClose(MethodCall methodCall) {
         // queue.cancelAll(_);
-        getService.stopService(new Intent(this, GetService.class));
+        // stopService(new Intent(this, GetService.class));
+        sendSerialData("");
         queue.cancelAll(request -> true);
         queue.stop();
     }
-
 
     private void volleyPost(byte[] bytes) {
         // https://developer.android.com/training/volley/simple#java
@@ -111,9 +125,9 @@ public class MainActivity extends FlutterActivity {
         VolleyMultipartRequest multipartRequest = new VolleyMultipartRequest(Request.Method.POST, address, new Response.Listener<NetworkResponse>() {
             @Override
             public void onResponse(NetworkResponse response) {
-                 String resultResponse = new String(response.data);
+                String resultResponse = new String(response.data);
                 Log.d(TAG, "Volley POST response: " + resultResponse);
-
+                sendSerialData(resultResponse);
             }
         }, new Response.ErrorListener() {
             @Override
@@ -121,34 +135,51 @@ public class MainActivity extends FlutterActivity {
                 NetworkResponse networkResponse = error.networkResponse;
                 Log.e(TAG, "Volley POST error"); // ,code: " + networkResponse.statusCode);
                 error.printStackTrace();
+                sendSerialData("");
             }
         }) {
-            @Override
-            protected Map<String, String> getParams() {
-                Map<String, String> params = new HashMap<>();
-                params.put("fake_data_key", "fake_data_value");
-                // TODO add data like location, speed, status, battery, time?
-                return params;
-            }
+//            @Override
+//            protected Map<String, String> getParams() {
+//                Map<String, String> params = new HashMap<>();
+//                params.put("fake_data_key", "fake_data_value");
+//                // TODO return data like location, speed, status, battery, time?
+//                return params;
+//            }
 
             @Override
             protected Map<String, DataPart> getByteData() {
                 Map<String, DataPart> params = new HashMap<>();
-                // file name could found file base or direct access from real path, for now just get bitmap data from ImageView
                 params.put("file", new DataPart("file", bytes, "image/jpeg"));
-                // params.put("file", new DataPart("file", new byte[]{65, 66, 127, 67}, "image/jpeg"));
                 return params;
             }
         };
 
         multipartRequest.setRetryPolicy(new DefaultRetryPolicy(
-                1000, // TODO experiment with timeout values
+                sendTime - 100, // TODO experiment with timeout and retry values
                 0, // DefaultRetryPolicy.DEFAULT_MAX_RETRIES, // May cause frames to be sent out of order, so don't retry
                 DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
         // Add the request to the RequestQueue.
         queue.add(multipartRequest);
     }
 
+    private String getMyLog() {
+        String s = "USB DATA BELOW:\n";
+        UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+        HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
+        for (UsbDevice device : deviceList.values()) {
+            s += device.toString() + "\n";
+            s += "some props: " + device.getDeviceName() + ", " + device.getProductName() + ", " + device.getManufacturerName() + "\n\n";
+        }
+        return s;
+    }
+
+    private void sendSerialData(String data) {
+        if(data.equals("")) {
+            // Stop motors
+        } else {
+            // Move motors
+        }
+    }
 
 
 }

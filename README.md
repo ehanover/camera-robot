@@ -1,4 +1,4 @@
-# mobile-camera-robot
+# camera-robot
 This app enables a robot car to carry a cell phone around in order to utilize the phone's camera and cellular capabilities. In theory, the car should be able to travel anywhere where the phone has a data connection.
 
 This project has three components:

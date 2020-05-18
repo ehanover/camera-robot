@@ -30,7 +30,7 @@ class MyForm extends StatefulWidget {
 class _MyFormState extends State<MyForm> {
 
   final controllerIp = TextEditingController(text: "http://192.168.0.225:5000");
-  final controllerMs = TextEditingController(text: "1000");
+  final controllerMs = TextEditingController(text: "1500");
 
   @override
   void initState() {
@@ -63,6 +63,7 @@ class _MyFormState extends State<MyForm> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: <Widget>[
+            Padding(padding: EdgeInsets.all(16.0)),
             Text("Enter the required information and press the check button to continue"),
             TextField(
               controller: controllerIp,

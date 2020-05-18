@@ -46,6 +46,12 @@ def get_data():
 	
 	return data
 
+def get_data_string():
+	# 0255-010
+	d = get_data()
+	# return str(d[0]).zfill(4) + "," + str(d[1]).zfill(4)
+	return str(d[0]).zfill(4) + str(d[1]).zfill(4)
+
 def set_flag(key, val):
 	global ku, kl, kr, kd
 	if key == "up":
@@ -97,14 +103,7 @@ def mypost():
 	else:
 		print("post has no file")
 
-	df = "0,0"
-	try: # TODO probably don't need this try/catch
-		d = get_data()
-		df = str(d[0]) + "," + str(d[1])
-	except Exception as e:
-		print("Error in getting keyboard data: " + str(e))
-
-	return df, 200
+	return get_data_string(), 200
 
 
 
@@ -116,8 +115,7 @@ if __name__ == '__main__':
 
 	plt.xticks([]) # No ticks anywhere
 	plt.yticks([])
-	# https://matplotlib.org/3.2.1/users/event_handling.html
-	fig.canvas.mpl_connect('key_press_event', key_press)
+	fig.canvas.mpl_connect('key_press_event', key_press) # https://matplotlib.org/3.2.1/users/event_handling.html
 	fig.canvas.mpl_connect('key_release_event', key_release)
 	
 	im = plt.imshow(np.random.rand(h, w))
@@ -127,5 +125,5 @@ if __name__ == '__main__':
 
 	# https://matplotlib.org/gallery/animation/basic_example.html
 	line_ani = animation.FuncAnimation(fig, update_graph,
-		fargs=(im,), interval=400, blit=False)
+		fargs=(im,), interval=350, blit=False)
 	plt.show()

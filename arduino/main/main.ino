@@ -3,17 +3,17 @@
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
 #include "utility/Adafruit_PWMServoDriver.h"
-// #include <SoftwareSerial.h>
+#include <SoftwareSerial.h>
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_DCMotor *leftMotor = AFMS.getMotor(3); // left
 Adafruit_DCMotor *rightMotor = AFMS.getMotor(2); // right
 
-int fullSpeed = 210; // speed when going straight (f,b)
-int backSpeed = 170;
-int turnSpeed = 115; // speed when turning (l,r)
-int diagonalSpeed = 230;
-int diagonalOppositeSpeed = 100; // speed when going diagonally (g,i,h,j)
+//int fullSpeed = 210; // speed when going straight (f,b)
+//int backSpeed = 170;
+//int turnSpeed = 115; // speed when turning (l,r)
+//int diagonalSpeed = 230;
+//int diagonalOppositeSpeed = 100; // speed when going diagonally (g,i,h,j)
 
 void setup(){
   mySerial.begin(9600);
@@ -33,10 +33,10 @@ void loop(){
     // left motor first 4 bits, right motor remaining 4 bits
     // motorSpeed = (val - 2) * 18
 
-    int a = (data & 0xF0) >> 4;
-    int b = data & 0xF;
+    // int a = (data & 0xF0) >> 4;
+    // int b = data & 0xF;
 
-
+  
 
   }
 }
@@ -60,5 +60,3 @@ void setRight(int targetSpeed, String dir){
   }
   rightMotor->setSpeed(targetSpeed);
 }
-
-

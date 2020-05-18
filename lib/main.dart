@@ -53,7 +53,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     WidgetsFlutterBinding.ensureInitialized(); // Ensure that plugin services are initialized so that `availableCameras()` can be called before `runApp()`
     final cameras = await availableCameras(); // Obtain a list of the available cameras on the device.
     print("ASDF there are ${cameras.length} cameras available");
-    camera = cameras[2]; // Get a specific camera from the list of available cameras. Use wide angle camera!
+    camera = cameras[2]; // Get a specific camera from the list of available cameras. Use wide angle camera! (cameras[0] is normal back-facing camera)
 //    print("done with _initCamera");
   }
 
@@ -74,8 +74,6 @@ class TakePictureScreenState extends State<TakePictureScreen> {
   }
 
   Future<void> _writeToFile(String val) async {
-//    Directory dir = await getApplicationDocumentsDirectory();
-//    String dirFolder = dir.path;
     String dirFolder = "/storage/self/primary/Download";
     String dirFile = "$dirFolder/camera-robot_log.txt";
 

@@ -2,21 +2,17 @@
 
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
-#include "utility/Adafruit_PWMServoDriver.h"
+// #include "utility/Adafruit_PWMServoDriver.h"
 #include <SoftwareSerial.h>
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_DCMotor *leftMotor = AFMS.getMotor(3); // left
 Adafruit_DCMotor *rightMotor = AFMS.getMotor(2); // right
-
-//int fullSpeed = 210; // speed when going straight (f,b)
-//int backSpeed = 170;
-//int turnSpeed = 115; // speed when turning (l,r)
-//int diagonalSpeed = 230;
-//int diagonalOppositeSpeed = 100; // speed when going diagonally (g,i,h,j)
+int lightPin = 13;
+String data = String("");
 
 void setup(){
-  mySerial.begin(9600);
+  Serial.begin(9600);
 
   AFMS.begin();
   leftMotor->run(FORWARD);
@@ -27,20 +23,44 @@ void setup(){
 }
 
 void loop(){
-  if(mySerial.available() > 0){
-    char data = mySerial.read();
-    // int 0-255
-    // left motor first 4 bits, right motor remaining 4 bits
-    // motorSpeed = (val - 2) * 18
-
-    // int a = (data & 0xF0) >> 4;
-    // int b = data & 0xF;
-
-  
-
+  if(Serial.available() > 0) {
+    char c = Serial.read();
+    if(c == '|') {
+      setMotors(data);
+      data = String("");
+    } else if(c != '\n' && c != '\r') {
+      data.concat(c);
+    }
   }
+  
 }
 
+void setMotors(String d) {
+  digitalWrite(lightPin, HIGH);
+  // 0255-010
+  if(d.length() < 8) {
+    setLeft(0, "FORWARD");
+    setRight(0, "FORWARD");
+    return;
+  }
+
+  int l = d.substring(0, 4).toInt();
+  int r = d.substring(4).toInt();
+
+  if(l < 0){
+    setLeft(-l, "BACKWARD");
+  } else {
+    setLeft(l, "FORWARD");
+  }
+  
+  if(r < 0){
+    setRight(-r, "BACKWARD");
+  } else {
+    setRight(r, "FORWARD");
+  }
+  digitalWrite(lightPin, LOW);
+  
+}
 
 
 void setLeft(int targetSpeed, String dir){

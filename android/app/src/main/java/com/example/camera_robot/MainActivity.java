@@ -11,6 +11,7 @@ import android.graphics.YuvImage;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 
@@ -40,12 +41,11 @@ public class MainActivity extends FlutterActivity {
     static final String TAG = "ASDF";
     static final String CHANNEL = "com.example.camera_robot";
 
-    // boolean sentOnce;
     RequestQueue queue;
     // GetService getService;
     long lastSentMillis;
     String address;
-    int sendTime = 1500; // How often the post-serial-update process happens, in ms
+    int sendTime; // How often the post-serial-update process happens, in ms
 
     UsbManager manager;
     UsbDevice device = null;
@@ -58,7 +58,6 @@ public class MainActivity extends FlutterActivity {
             if (ACTION_USB_PERMISSION.equals(action)) {
                 synchronized (this) {
                     UsbDevice device = (UsbDevice) intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                         if(device != null){
                             usbPermissionAccepted();
@@ -75,6 +74,7 @@ public class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         GeneratedPluginRegistrant.registerWith(flutterEngine);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL).setMethodCallHandler(
                 (methodCall, result) -> { // Are the result.success(null) lines useful?
@@ -104,6 +104,7 @@ public class MainActivity extends FlutterActivity {
             sendTime = methodCall.argument("sendTime");
             address = methodCall.argument("address");
         } catch (NullPointerException e) {
+            sendTime = 10000;
             Log.e(TAG, "streamInit methodCall arguments are missing values. ");
             e.printStackTrace();
         }
@@ -118,13 +119,8 @@ public class MainActivity extends FlutterActivity {
     }
 
     public void streamImage(MethodCall methodCall) {
-        if(System.currentTimeMillis() < lastSentMillis + sendTime) {
-            // Log.d(TAG, "Skipping because of time delay");
+        if(System.currentTimeMillis() < lastSentMillis + sendTime)
             return;
-        }
-//        if(sentOnce)
-//            return;
-//        sentOnce = true;
 
         int width = 320; // These should probably be methodCall arguments
         int height = 240;
@@ -134,7 +130,7 @@ public class MainActivity extends FlutterActivity {
         // String s = new String(bytes.get(0), StandardCharsets.UTF_8); // Plain bytes straight to string
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        img.compressToJpeg(new Rect(0, 0, width, height), 30, out); // TODO adjust
+        img.compressToJpeg(new Rect(0, 0, width, height), 60, out); // TODO adjust - higher number is higher quality
         byte[] out_bytes = out.toByteArray();
 
         Log.d(TAG, "Sending image with byte length=" + out_bytes.length);

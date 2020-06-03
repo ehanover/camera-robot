@@ -8,13 +8,19 @@ import threading
 from flask import Flask, request
 from PIL import Image
 
-SCALE = 230/100 # Effectively sets the max speed of the car
-FORWARD = int(100*SCALE)
-REVERSE = int(70*SCALE)
-SIDE_PRIMARY = int(50*SCALE)
-SIDE_SECONDARY = int(0*SCALE)
-DIAGONAL_PRIMARY = int(80*SCALE)
-DIAGONAL_SECONDARY = int(40*SCALE)
+scale = 160/100.0 # Sets the max speed of the car
+# FORWARD = int(80*scale)
+# REVERSE = int(80*scale)
+# SIDE_PRIMARY = int(60*scale)
+# SIDE_SECONDARY = int(0*scale)
+# DIAGONAL_PRIMARY = int(100*scale)
+# DIAGONAL_SECONDARY = int(60*scale)
+FORWARD = 80
+REVERSE = 80
+SIDE_PRIMARY = 60
+SIDE_SECONDARY = 0
+DIAGONAL_PRIMARY = 100
+DIAGONAL_SECONDARY = 60
 
 ku = kl = kr = kd = False
 img = None
@@ -22,12 +28,25 @@ app = Flask(__name__)
 
 
 def key_press(event):
+	global scale
 	# print("pressed: " + str(event.key))
-	set_flag(str(event.key), True)
+	k = str(event.key)
+	if k == "d":
+		scale += 0.05
+		if scale > 2.55:
+			scale = 2.55
+	elif k == "a":
+		scale -= 0.05
+		if scale < 0:
+			scale = 0
+	else:
+		set_flag(k, True)
 
 def key_release(event):
 	# print("released: " + str(event.key))
-	set_flag(str(event.key), False)
+	k = str(event.key)
+	if k != "d" and k != "a":
+		set_flag(str(event.key), False)
 
 def get_data():
 	data = [0, 0]
@@ -41,10 +60,12 @@ def get_data():
 		data = [DIAGONAL_PRIMARY, DIAGONAL_SECONDARY]
 	elif kl:
 		data = [SIDE_SECONDARY, SIDE_PRIMARY]
+		# data = [SIDE_PRIMARY, SIDE_SECONDARY]
 	elif kr:
 		data = [SIDE_PRIMARY, SIDE_SECONDARY]
+		# data = [SIDE_SECONDARY, SIDE_PRIMARY]
 	
-	return data
+	return [int(-scale*data[0]), int(-scale*data[1])] # Not normal
 
 def get_data_string():
 	# 0255-010
@@ -69,19 +90,19 @@ def update_graph(num, im): # https://stackoverflow.com/questions/17212722/matplo
 		# print("animation: graph updated")
 		im.set_array(img)
 
-	plt.xlabel("data: " + str(get_data()), fontsize="large")
+	plt.xlabel("scale: " + str(int(scale*100)) + "     data: " + str(get_data()), fontsize="large")
 	return im,
 
 def decode_img(d):
 	try:
 		img = Image.open(io.BytesIO(d))
 		img = np.asarray(img)
-		img = np.flipud(img)
+		# img = np.flipud(img)
+		img = np.fliplr(img)
 		return img
 	except IOError:
 		print('Decoding bad image: IOError')
 	return None
-
 
 
 def start_server():
@@ -106,7 +127,6 @@ def mypost():
 	return get_data_string(), 200
 
 
-
 if __name__ == '__main__':
 	w = 320
 	h = 240
@@ -124,6 +144,5 @@ if __name__ == '__main__':
 	thread.start()
 
 	# https://matplotlib.org/gallery/animation/basic_example.html
-	line_ani = animation.FuncAnimation(fig, update_graph,
-		fargs=(im,), interval=350, blit=False)
+	line_ani = animation.FuncAnimation(fig, update_graph, fargs=(im,), interval=150, blit=False)
 	plt.show()

@@ -5,22 +5,17 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import threading
-from flask import Flask, request
+from flask import Flask, request, Response
 from PIL import Image
+from werkzeug.serving import WSGIRequestHandler
 
 scale = 160/100.0 # Sets the max speed of the car
-# FORWARD = int(80*scale)
-# REVERSE = int(80*scale)
-# SIDE_PRIMARY = int(60*scale)
-# SIDE_SECONDARY = int(0*scale)
-# DIAGONAL_PRIMARY = int(100*scale)
-# DIAGONAL_SECONDARY = int(60*scale)
 FORWARD = 80
 REVERSE = 80
 SIDE_PRIMARY = 60
 SIDE_SECONDARY = 0
-DIAGONAL_PRIMARY = 100
-DIAGONAL_SECONDARY = 60
+DIAGONAL_PRIMARY = 90
+DIAGONAL_SECONDARY = 65
 
 ku = kl = kr = kd = False
 img = None
@@ -68,9 +63,8 @@ def get_data():
 	return [int(-scale*data[0]), int(-scale*data[1])] # Not normal
 
 def get_data_string():
-	# 0255-010
+	# Data string looks like: 0255-010
 	d = get_data()
-	# return str(d[0]).zfill(4) + "," + str(d[1]).zfill(4)
 	return str(d[0]).zfill(4) + str(d[1]).zfill(4)
 
 def set_flag(key, val):
@@ -85,8 +79,7 @@ def set_flag(key, val):
 		kd = val
 
 def update_graph(num, im): # https://stackoverflow.com/questions/17212722/matplotlib-imshow-how-to-animate
-	# print("update_line")
-	if img is not None: # TODO does this need a thread lock?
+	if img is not None: # Does this need a thread lock?
 		# print("animation: graph updated")
 		im.set_array(img)
 
@@ -97,19 +90,20 @@ def decode_img(d):
 	try:
 		img = Image.open(io.BytesIO(d))
 		img = np.asarray(img)
-		# img = np.flipud(img)
+		# img = np.flipud(img) # Depends on orientation of the phone in the car
 		img = np.fliplr(img)
 		return img
 	except IOError:
-		print('Decoding bad image: IOError')
+		print('Decoded a bad image: IOError')
 	return None
 
 
 def start_server():
-	app.run(host='0.0.0.0')
+	WSGIRequestHandler.protocol_version = "HTTP/1.1"
+	app.run(host='0.0.0.0', debug=False)
 
 @app.route('/', methods=['GET'])
-def myget(): # There shouldn't be any get requests
+def myget(): # Nothing should be making a GET request
 	print("got a GET")
 	return "fake get return", 204
 
@@ -118,13 +112,16 @@ def mypost():
 	print("got a POST")
 	file = request.files['file']
 	if file:
-		print("post has a file, updating img value")
+		# print("post has a file, updating img value")
 		global img
 		img = decode_img(file.read())
 	else:
-		print("post has no file")
+		print("error: post has no file")
 
-	return get_data_string(), 200
+	resp = Response(get_data_string())
+	# resp.headers['Connection'] = 'Keep-Alive'
+	# resp.headers['Keep-Alive'] = 'timeout=5, max=1000'
+	return resp, 200
 
 
 if __name__ == '__main__':

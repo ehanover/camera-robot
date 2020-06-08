@@ -15,17 +15,26 @@ import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 
-import com.android.volley.DefaultRetryPolicy;
-import com.android.volley.NetworkResponse;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.Volley;
+//import com.android.volley.DefaultRetryPolicy;
+//import com.android.volley.NetworkResponse;
+//import com.android.volley.Request;
+//import com.android.volley.RequestQueue;
+//import com.android.volley.Response;
+//import com.android.volley.VolleyError;
+//import com.android.volley.toolbox.Volley;
 import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,12 +45,21 @@ import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugins.GeneratedPluginRegistrant;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.internal.Util;
 
 public class MainActivity extends FlutterActivity {
     static final String TAG = "ASDF";
     static final String CHANNEL = "com.example.camera_robot";
 
-    RequestQueue queue;
+    OkHttpClient client;
+    // GetService getService;
     long lastSentMillis;
     String address;
     int sendTime; // How often the post-serial-update process happens, in ms
@@ -49,6 +67,8 @@ public class MainActivity extends FlutterActivity {
     UsbManager manager;
     UsbDevice device = null;
     UsbSerialDevice serial;
+
+
 
     private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
     private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
@@ -88,12 +108,10 @@ public class MainActivity extends FlutterActivity {
                         Log.d(TAG, "Trying to close stream...");
                         streamClose(methodCall);
                         result.success(null);
-                    }
-                    /* else if(methodCall.method.equals("myLog")) {
+                    } else if(methodCall.method.equals("myLog")) {
                         Log.d(TAG, "Log methodCall...");
                         result.success(getMyLog());
-                    } */
-                    else {
+                    } else {
                         result.notImplemented();
                     }
                 }
@@ -102,6 +120,7 @@ public class MainActivity extends FlutterActivity {
 
     public void streamInit(MethodCall methodCall) {
         System.setProperty("http.keepAlive", "true");
+
         try {
             sendTime = methodCall.argument("sendTime");
             address = methodCall.argument("address");
@@ -110,8 +129,18 @@ public class MainActivity extends FlutterActivity {
             Log.e(TAG, "streamInit methodCall arguments are missing values. ");
             e.printStackTrace();
         }
-        queue = Volley.newRequestQueue(this);
+
+        try {
+            throw new IOException();
+        } catch (IOException e) {
+            Log.e(TAG, "streamInit - either malformed URL or failure to open connection");
+            e.printStackTrace();
+        }
+
         usbPermissionAsk();
+
+        // getService = new GetService("GetServiceIntent", queue, address);
+        // startService(new Intent(this, GetService.class));
 
         lastSentMillis = -1;
         Log.d(TAG, "Done with streamInit, address=" + address);
@@ -121,7 +150,7 @@ public class MainActivity extends FlutterActivity {
         if(System.currentTimeMillis() < lastSentMillis + sendTime)
             return;
 
-        int width = 320; // These should be methodCall arguments
+        int width = 320; // These should probably be methodCall arguments
         int height = 240;
 
         ArrayList<byte[]> bytes = methodCall.argument("bytes");
@@ -129,21 +158,60 @@ public class MainActivity extends FlutterActivity {
         // String s = new String(bytes.get(0), StandardCharsets.UTF_8); // Plain bytes straight to string
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        img.compressToJpeg(new Rect(0, 0, width, height), 90, out); // TODO adjust - higher number is higher quality
+        img.compressToJpeg(new Rect(0, 0, width, height), 70, out); // TODO adjust - higher number is higher quality
         byte[] out_bytes = out.toByteArray();
-
+        // volleyPost(out_bytes);
+        httpPost(out_bytes);
         Log.d(TAG, "Sending image with byte length=" + out_bytes.length);
-        volleyPost(out_bytes);
+
 
         lastSentMillis = System.currentTimeMillis();
     }
 
     public void streamClose(MethodCall methodCall) {
         usbSendData("");
-        queue.cancelAll(request -> true);
-        queue.stop();
+        // client.close()?
     }
 
+    private void httpPost(byte[] bytes) {
+        Callback callback = new Callback() {
+            @Override
+            public void onFailure(Call c, IOException e) {
+                Log.e(TAG, "httpPost onFailure...");
+                e.printStackTrace();
+            }
+            @Override
+            public void onResponse(Call c, Response r) {
+                if(r.isSuccessful()) {
+                    try {
+                        String rString = r.body().string();
+                        Log.d(TAG, "httpPost onResponse response=" + rString);
+                        usbSendData(rString);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    Log.e(TAG, "httpPost onResponse not successful");
+                }
+            }
+        };
+//        RequestBody body = RequestBody.create(json, JSON);
+        Request request = new Request.Builder()
+                .header("Connection", "Keep-Alive")
+                .header("Keep-Alive", "timeout=5, max=1000")
+                .url(address)
+                .post(RequestBody.create(MediaType.parse(""), "asdf"))
+                .build();
+        Call call = client.newCall(request);
+        call.enqueue(callback);
+        // return call;
+
+//        try (Response response = client.newCall(request).execute()) {
+//            return response.body().string();
+//        }
+    }
+
+    /*
     private void volleyPost(byte[] bytes) {
         // https://developer.android.com/training/volley/simple#java
         // https://stackoverflow.com/questions/32240177/working-post-multipart-request-with-volley-and-without-httpentity
@@ -157,33 +225,12 @@ public class MainActivity extends FlutterActivity {
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                // NetworkResponse networkResponse = error.networkResponse;
+                NetworkResponse networkResponse = error.networkResponse;
                 Log.e(TAG, "Volley POST error"); // ,code: " + networkResponse.statusCode);
                 error.printStackTrace();
                 usbSendData("");
             }
         }) {
-            /*
-            @Override
-            protected Map<String, String> getParams() {
-                Map<String, String> params = new HashMap<>();
-                params.put("fake_data_key", "fake_data_value");
-                // TODO return data like location, speed, status, battery, time?
-                return params;
-            }
-            */
-            @Override
-            public Map<String, String> getHeaders() {
-                Map<String, String> params = new HashMap<String, String>();
-                // TODO There are some problems with persistent connections.
-                //  In theory these headers shouldn't change anything because it should be the default behavior for http 1.1?
-                //  When using the LTE phone connection, ngrok thinks each request isn't persistent which
-                //  causes the 40 connection/min limit to be met very quickly. I switched to using pagekite tunnelling
-                //  which avoids the issue.
-                params.put("Connection", "keep-alive");
-                params.put("Keep-Alive", "timeout=5, max=1000");
-                return params;
-            }
             @Override
             protected Map<String, DataPart> getByteData() {
                 Map<String, DataPart> params = new HashMap<>();
@@ -193,19 +240,13 @@ public class MainActivity extends FlutterActivity {
         };
 
         multipartRequest.setRetryPolicy(new DefaultRetryPolicy(
-                sendTime - 10,
+                sendTime - 100, // TODO experiment with timeout and retry values
                 0, // DefaultRetryPolicy.DEFAULT_MAX_RETRIES, // May cause frames to be sent out of order, so don't retry
                 DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
-        multipartRequest.setShouldCache(false);
-//        try {
-//            Log.d(TAG, "volleyPost request headers: " + multipartRequest.getHeaders());
-//        } catch (AuthFailureError authFailureError) {
-//            authFailureError.printStackTrace();
-//        }
-        queue.add(multipartRequest); // Add the request to the RequestQueue.
+//        queue.add(multipartRequest);
     }
+    */
 
-    /*
     private String getMyLog() {
         String s = "USB DATA BELOW:\n";
         UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -216,7 +257,6 @@ public class MainActivity extends FlutterActivity {
         }
         return s;
     }
-    */
 
     private void usbPermissionAsk() {
         Log.d(TAG, "usbSetupPermission called");
@@ -232,6 +272,7 @@ public class MainActivity extends FlutterActivity {
             Log.e(TAG, "setupUsb: could not find a device with correct product name");
             return;
         }
+        //private static String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
         PendingIntent mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent("com.android.example.USB_PERMISSION"), 0);
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
         registerReceiver(usbReceiver, filter);
@@ -244,7 +285,7 @@ public class MainActivity extends FlutterActivity {
         // Arduino is 8-N-1 serial communication
         UsbDeviceConnection usbConnection = manager.openDevice(device);
         // https://github.com/felHR85/UsbSerial
-        // Another possible serial solution: https://github.com/OmarAflak/Arduino-Library
+        // Consider using https://github.com/OmarAflak/Arduino-Library
         serial = UsbSerialDevice.createUsbSerialDevice(device, usbConnection);
         serial.open();
         serial.setBaudRate(9600);
@@ -252,9 +293,6 @@ public class MainActivity extends FlutterActivity {
         serial.setDataBits(UsbSerialInterface.DATA_BITS_8);
         serial.setParity(UsbSerialInterface.PARITY_EVEN);
         serial.setStopBits(UsbSerialInterface.STOP_BITS_1);
-        // TODO with sendTime values that are less than ~600, sometimes the serial connection
-        //  connects correctly but fails to send data. This is likely because too much data is
-        //  being sent over the serial connection.
     }
 
     private void usbSendData(String data) {
@@ -262,7 +300,7 @@ public class MainActivity extends FlutterActivity {
             return;
         }
         Log.d(TAG, "usbSendData sending data=" + data);
-        // data looks like 0100-030 (sLLLsRRR)
+        // data looks like 0100-030 sLLLsRRR
 
         if(data.equals("")) { // Stop motors
             serial.write( "00000000|".getBytes() );

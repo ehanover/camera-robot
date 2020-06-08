@@ -1,11 +1,10 @@
+import 'main.dart';
+
 import 'package:camera_robot/main.dart';
 import 'package:flutter/material.dart';
-
-import 'main.dart';
-//import 'package:path/path.dart' show join;
 //import 'package:path_provider/path_provider.dart';
-//import 'package:simple_permissions/simple_permissions.dart';
 import 'package:permission_handler/permission_handler.dart';
+//import 'package:simple_permissions/simple_permissions.dart';
 
 void main() => runApp(MyApp());
 
@@ -28,9 +27,8 @@ class MyForm extends StatefulWidget {
 
 
 class _MyFormState extends State<MyForm> {
-
   final controllerIp = TextEditingController(text: "http://192.168.0.225:5000");
-  final controllerMs = TextEditingController(text: "700");
+  final controllerMs = TextEditingController(text: "600");
 
   @override
   void initState() {

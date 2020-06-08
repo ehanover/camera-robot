@@ -59,7 +59,8 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.1.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.1.1'
 
-// implementation 'me.aflak.libraries:arduino:1.4.4'
-    implementation 'com.github.felHR85:UsbSerial:6.1.0' // TODO needed?
+    // implementation 'me.aflak.libraries:arduino:1.4.4'
+    implementation 'com.github.felHR85:UsbSerial:6.1.0'
     implementation 'com.android.volley:volley:1.1.1'
+    // implementation "com.squareup.okhttp3:okhttp:4.7.2"
 }

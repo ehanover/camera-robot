@@ -1,32 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:camera_robot/start.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-
-/* Future<void> main() async {
-
-  WidgetsFlutterBinding.ensureInitialized(); // Ensure that plugin services are initialized so that `availableCameras()` can be called before `runApp()`
-  final cameras = await availableCameras(); // Obtain a list of the available cameras on the device.
-  final firstCamera = cameras.first; // Get a specific camera from the list of available cameras.
-
-  runApp(
-    MaterialApp(
-      theme: ThemeData.dark(),
-      home: TakePictureScreen(
-        camera: firstCamera, // Pass the appropriate camera to the TakePictureScreen widget.
-      ),
-    ),
-  );
-} */
+// import 'package:path_provider/path_provider.dart'; // Used for debug logging
 
 // A screen that allows users to take a picture using a given camera.
 class TakePictureScreen extends StatefulWidget {
-//  CameraDescription camera;
   final String address;
   final int sendTime;
 
@@ -34,7 +16,6 @@ class TakePictureScreen extends StatefulWidget {
     Key key,
     @required this.address,
     @required this.sendTime,
-    // @required this.camera,
   }) : super(key: key);
 
   @override
@@ -49,22 +30,18 @@ class TakePictureScreenState extends State<TakePictureScreen> {
   bool stopped;
 
   Future<void> _initCamera() async {
-//    print("starting _initCamera");
     WidgetsFlutterBinding.ensureInitialized(); // Ensure that plugin services are initialized so that `availableCameras()` can be called before `runApp()`
     final cameras = await availableCameras(); // Obtain a list of the available cameras on the device.
-    print("ASDF there are ${cameras.length} cameras available");
+    print("There are ${cameras.length} cameras available");
     camera = cameras[2]; // Get a specific camera from the list of available cameras. Use wide angle camera! (cameras[0] is normal back-facing camera)
-//    print("done with _initCamera");
   }
 
   Future<void> _initController() async {
-//     print("starting _initController");
     _controller = CameraController( // To display the current output from the Camera, create a CameraController.
       camera,
       ResolutionPreset.low, // Can change the resolution here
     );
     _controller.initialize();
-//    print("done with _initController");
   }
 
   Future<void> _initAllFunc() async {
@@ -73,14 +50,18 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     });
   }
 
+  /*
+  // Used for writing debug log data to a text file while the Arduino is attached
+  // to the phone's USB port instead of the computer
   Future<void> _writeToFile(String val) async {
     String dirFolder = "/storage/self/primary/Download";
     String dirFile = "$dirFolder/camera-robot_log.txt";
 
     File f = File(dirFile);
     f.writeAsString(val);
-    print("ASDF wrote data to file at $dirFile");
+    print("Successfully wrote data to file at $dirFile");
   }
+  */
 
   @override
   void initState() {
@@ -108,16 +89,15 @@ class TakePictureScreenState extends State<TakePictureScreen> {
         future: _initAll,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done && stopped == false) { // If the Future is complete, display the preview.
-//            platformMethodChannel.invokeMethod("myLog").then((value) {
-//              print("ASDF trying to write value=$value");
-//              _writeToFile("$value");
-//            });
+            // platformMethodChannel.invokeMethod("myLog").then((value) {
+            //   print("Trying to write value=$value");
+            //   _writeToFile("$value");
+            // });
             platformMethodChannel.invokeMethod("streamStart", {"address": widget.address, "sendTime": widget.sendTime}).then((val) {
               _controller.startImageStream((CameraImage img) {
                 _streamImage(img);
               });
             });
-
             return CameraPreview(_controller);
           } else {
             return Center(child: CircularProgressIndicator());
@@ -129,7 +109,6 @@ class TakePictureScreenState extends State<TakePictureScreen> {
           onPressed: () {
             stopped = true;
             platformMethodChannel.invokeMethod('streamClose');
-            // _controller.startImageStream(null);
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -141,7 +120,8 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     );
   }
 
-  _streamImage(CameraImage img) { // format, height, width, planes
+  _streamImage(CameraImage img) {
+    // CameraImage has properties format, height, width, planes
     if(stopped || platformMethodChannel == null)
       return;
 
